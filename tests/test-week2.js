@@ -153,6 +153,92 @@ function testRangeScan() {
   console.log('✓ testRangeScan passed');
 }
 
+function testRangeSearch() {
+  const tree = new BPlusTree(3);
+  [1, 5, 10, 15, 20, 25, 30].forEach((k, i) =>
+    tree.insert(k, { pageId: 0, slotIndex: i })
+  );
+
+  // Inclusive range in the middle
+  const r1 = tree.rangeSearch(5, 20);
+  assert.deepStrictEqual(r1.map(x => x.key), [5, 10, 15, 20]);
+
+  // Range that covers everything
+  const r2 = tree.rangeSearch(1, 30);
+  assert.deepStrictEqual(r2.map(x => x.key), [1, 5, 10, 15, 20, 25, 30]);
+
+  // Range with no results
+  const r3 = tree.rangeSearch(100, 200);
+  assert.deepStrictEqual(r3, []);
+
+  // Single-element range (exact boundary)
+  const r4 = tree.rangeSearch(10, 10);
+  assert.deepStrictEqual(r4.map(x => x.key), [10]);
+
+  console.log('✓ testRangeSearch passed');
+}
+
+function testDeleteSimple() {
+  const tree = new BPlusTree(4);
+  [10, 20, 30].forEach((k, i) => tree.insert(k, { pageId: 0, slotIndex: i }));
+
+  // Delete a present key
+  assert.strictEqual(tree.delete(20), true);
+  assert.strictEqual(tree.search(20), null);
+  // Other keys must still be findable
+  assert.notStrictEqual(tree.search(10), null);
+  assert.notStrictEqual(tree.search(30), null);
+
+  // Delete a key that doesn't exist
+  assert.strictEqual(tree.delete(99), false);
+
+  console.log('✓ testDeleteSimple passed');
+}
+
+function testDeleteTriggersMerge() {
+  // order = 3, minKeys = ceil(3/2) = 2
+  // Insert enough to force splits, then delete to force a merge.
+  const tree = new BPlusTree(3);
+  [10, 20, 30, 40, 50].forEach((k, i) =>
+    tree.insert(k, { pageId: 0, slotIndex: i })
+  );
+
+  // Delete keys until a leaf underflows and must merge.
+  tree.delete(10);
+  tree.delete(20);
+
+  // Remaining keys must all still be searchable.
+  [30, 40, 50].forEach(k => {
+    assert.notStrictEqual(tree.search(k), null, `key ${k} missing after deletes`);
+  });
+
+  // Leaf linked list must still be sorted and contain exactly the remaining keys.
+  const leafKeys = collectLeafKeys(tree);
+  assert.deepStrictEqual(leafKeys, [30, 40, 50]);
+
+  console.log('✓ testDeleteTriggersMerge passed');
+}
+
+function testDeleteAllKeys() {
+  // Deleting every key from the tree should leave it in a clean empty state.
+  const tree = new BPlusTree(3);
+  const keys = [5, 10, 15, 20, 25];
+  keys.forEach((k, i) => tree.insert(k, { pageId: 0, slotIndex: i }));
+
+  keys.forEach(k => {
+    assert.strictEqual(tree.delete(k), true, `delete(${k}) should return true`);
+  });
+
+  // Tree root should now be an empty leaf (back to initial state).
+  assert.strictEqual(tree.root.isLeaf, true);
+  assert.strictEqual(tree.root.keys.length, 0);
+
+  // Searching for any key should return null.
+  keys.forEach(k => assert.strictEqual(tree.search(k), null));
+
+  console.log('✓ testDeleteAllKeys passed');
+}
+
 // ---------------------------------------------------------------------------
 // Run all
 // ---------------------------------------------------------------------------
@@ -166,7 +252,12 @@ function runAllTests() {
   testLeafLinkedListOrder();
   testInternalNodeSplit();
   testRangeScan();
+  testRangeSearch();
+  testDeleteSimple();
+  testDeleteTriggersMerge();
+  testDeleteAllKeys();
   console.log('All Week 2 tests passed');
 }
 
 runAllTests();
+

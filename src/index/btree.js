@@ -320,6 +320,258 @@ class BPlusTree {
     const { newNode: newParent, promotedKey } = this._splitInternal(parent);
     this._insertIntoParent(path.slice(0, -1), parent, promotedKey, newParent);
   }
+
+  // -------------------------------------------------------------------------
+  // rangeSearch(minKey, maxKey)
+  // -------------------------------------------------------------------------
+  /**
+   * Returns an array of all { key, recordId } pairs whose key is in
+   * [minKey, maxKey] inclusive, in ascending key order.
+   *
+   * Strategy:
+   *   1. Use _findLeaf(minKey) to jump directly to the leaf where minKey
+   *      would live — O(log N). This is the key advantage of B+ trees over
+   *      hash indexes: we get a cheap O(log N) entry point into a sorted scan.
+   *   2. Walk forward through the leaf linked list collecting values until
+   *      we either exceed maxKey or exhaust all leaves — O(k) for k results.
+   *
+   * @param {*} minKey
+   * @param {*} maxKey
+   * @returns {Array<{ key: *, recordId: * }>}
+   */
+  rangeSearch(minKey, maxKey) {
+    const results = [];
+    let leaf = this._findLeaf(minKey);
+
+    while (leaf !== null) {
+      for (let i = 0; i < leaf.keys.length; i++) {
+        const k = leaf.keys[i];
+        if (k > maxKey) return results; // passed the upper bound — done
+        if (k >= minKey) {
+          results.push({ key: k, recordId: leaf.values[i] });
+        }
+      }
+      leaf = leaf.next; // advance to the next leaf page
+    }
+
+    return results;
+  }
+
+  // -------------------------------------------------------------------------
+  // delete(key)
+  // -------------------------------------------------------------------------
+  /**
+   * Removes the entry for `key` from the tree.
+   *
+   * Returns true if the key was found and deleted, false if it wasn't present.
+   *
+   * High-level steps:
+   *   1. Locate the leaf and its ancestor path via _findLeafPath.
+   *   2. Remove the key+value from the leaf.
+   *   3. If the leaf underflows (fewer than minKeys entries) and is not the
+   *      root, attempt to fix it:
+   *
+   * Borrow vs. Merge decision:
+   *   We first look at adjacent siblings (via the parent's children array).
+   *   - BORROW: If a sibling has more than the minimum number of keys, we
+   *     take one key from it and update the separator in the parent. This is
+   *     preferred because it keeps both nodes alive and avoids rebalancing
+   *     higher in the tree.
+   *   - MERGE: If no sibling can spare a key, we merge the leaf with a sibling
+   *     into one node, delete the now-redundant separator from the parent, and
+   *     fix up the leaf linked list. The parent may then underflow too, so we
+   *     propagate the underflow fix upward through the ancestor path.
+   *
+   * NOTE: This implementation handles one level of underflow propagation
+   * correctly for both leaf and internal nodes. Production databases (e.g.
+   * PostgreSQL, InnoDB) handle additional edge cases around cascading
+   * multi-level merges all the way up to the root, root collapse (when the
+   * root becomes empty after its last two children merge), and concurrency
+   * via page-level latching. Those are intentionally out of scope here.
+   *
+   * @param {*} key
+   * @returns {boolean}
+   */
+  delete(key) {
+    const { leaf, path } = this._findLeafPath(key);
+
+    // --- Step 1: Find and remove the key from the leaf ----------------------
+    const keyIdx = leaf.keys.indexOf(key);
+    if (keyIdx === -1) return false; // key not in tree
+
+    leaf.keys.splice(keyIdx, 1);
+    leaf.values.splice(keyIdx, 1);
+
+    // --- Step 2: Check for underflow ----------------------------------------
+    const minKeys = Math.ceil(this.order / 2);
+
+    // If the leaf is the root (tree has only one node), or it still has
+    // enough keys, we are done.
+    if (path.length === 0 || leaf.keys.length >= minKeys) return true;
+
+    // --- Step 3: Fix underflow ----------------------------------------------
+    this._handleLeafUnderflow(leaf, path);
+    return true;
+  }
+
+  // -------------------------------------------------------------------------
+  // _handleLeafUnderflow(leaf, path)
+  // -------------------------------------------------------------------------
+  /**
+   * Attempts to fix a leaf underflow by borrowing from a sibling or merging.
+   *
+   * @param {LeafNode} leaf
+   * @param {InternalNode[]} path - ancestor chain, root first
+   */
+  _handleLeafUnderflow(leaf, path) {
+    const parent    = path[path.length - 1];
+    const leafIdx   = parent.children.indexOf(leaf);
+    const minKeys   = Math.ceil(this.order / 2);
+
+    // Prefer the right sibling, fall back to left sibling.
+    const rightSibIdx = leafIdx + 1 < parent.children.length ? leafIdx + 1 : -1;
+    const leftSibIdx  = leafIdx - 1 >= 0                     ? leafIdx - 1 : -1;
+
+    // --- Try borrowing from the RIGHT sibling --------------------------------
+    if (rightSibIdx !== -1) {
+      const rightSib = parent.children[rightSibIdx];
+      if (rightSib.keys.length > minKeys) {
+        // Take the first (smallest) key from the right sibling.
+        leaf.keys.push(rightSib.keys.shift());
+        leaf.values.push(rightSib.values.shift());
+        // The separator in the parent must now point to the new smallest key
+        // of the right sibling (since we took its old first key).
+        parent.keys[leafIdx] = rightSib.keys[0];
+        return;
+      }
+    }
+
+    // --- Try borrowing from the LEFT sibling ---------------------------------
+    if (leftSibIdx !== -1) {
+      const leftSib = parent.children[leftSibIdx];
+      if (leftSib.keys.length > minKeys) {
+        // Take the last (largest) key from the left sibling.
+        leaf.keys.unshift(leftSib.keys.pop());
+        leaf.values.unshift(leftSib.values.pop());
+        // The separator between leftSib and leaf in the parent is now the
+        // new first key of the (now larger) leaf.
+        parent.keys[leftSibIdx] = leaf.keys[0];
+        return;
+      }
+    }
+
+    // --- Neither sibling can spare a key → MERGE ----------------------------
+    if (rightSibIdx !== -1) {
+      // Merge leaf into the right sibling (absorb right into left).
+      const rightSib = parent.children[rightSibIdx];
+      // Pull all of right's entries into leaf.
+      leaf.keys.push(...rightSib.keys);
+      leaf.values.push(...rightSib.values);
+      // Fix up the linked list: leaf now points to what rightSib pointed to.
+      leaf.next = rightSib.next;
+      // Remove the separator key and the right sibling child from the parent.
+      parent.keys.splice(leafIdx, 1);
+      parent.children.splice(rightSibIdx, 1);
+    } else {
+      // Merge left sibling into leaf (absorb leaf into left).
+      const leftSib = parent.children[leftSibIdx];
+      leftSib.keys.push(...leaf.keys);
+      leftSib.values.push(...leaf.values);
+      leftSib.next = leaf.next;
+      // Remove the separator and the leaf child from the parent.
+      parent.keys.splice(leftSibIdx, 1);
+      parent.children.splice(leafIdx, 1);
+    }
+
+    // --- Propagate underflow in the parent if needed ------------------------
+    if (path.length === 1) {
+      // Parent is the root. If it is now empty, collapse it.
+      if (parent.keys.length === 0) {
+        this.root = parent.children[0];
+      }
+      return;
+    }
+
+    const minInternal = Math.ceil(this.order / 2);
+    if (parent.keys.length >= minInternal) return; // parent is fine
+
+    this._handleInternalUnderflow(parent, path.slice(0, -1));
+  }
+
+  // -------------------------------------------------------------------------
+  // _handleInternalUnderflow(node, path)
+  // -------------------------------------------------------------------------
+  /**
+   * Attempts to fix an internal node underflow by borrowing from a sibling
+   * or merging with one. Mirrors _handleLeafUnderflow but for InternalNodes.
+   *
+   * NOTE: Unlike leaf merges (which COPY the separator), internal merges
+   * PULL DOWN the parent separator into the merged node — because internal
+   * nodes don't hold data, the separator belongs logically between the two
+   * halves and must be preserved to maintain the children.length === keys.length+1
+   * invariant.
+   *
+   * @param {InternalNode} node
+   * @param {InternalNode[]} path - ancestors ABOVE node, root first
+   */
+  _handleInternalUnderflow(node, path) {
+    const parent    = path[path.length - 1];
+    const nodeIdx   = parent.children.indexOf(node);
+    const minKeys   = Math.ceil(this.order / 2);
+
+    const rightSibIdx = nodeIdx + 1 < parent.children.length ? nodeIdx + 1 : -1;
+    const leftSibIdx  = nodeIdx - 1 >= 0                     ? nodeIdx - 1 : -1;
+
+    // --- Try borrowing from RIGHT sibling ------------------------------------
+    if (rightSibIdx !== -1) {
+      const rightSib = parent.children[rightSibIdx];
+      if (rightSib.keys.length > minKeys) {
+        // Pull the parent separator down into node, push right's first key up.
+        node.keys.push(parent.keys[nodeIdx]);
+        parent.keys[nodeIdx] = rightSib.keys.shift();
+        node.children.push(rightSib.children.shift());
+        return;
+      }
+    }
+
+    // --- Try borrowing from LEFT sibling -------------------------------------
+    if (leftSibIdx !== -1) {
+      const leftSib = parent.children[leftSibIdx];
+      if (leftSib.keys.length > minKeys) {
+        node.keys.unshift(parent.keys[leftSibIdx]);
+        parent.keys[leftSibIdx] = leftSib.keys.pop();
+        node.children.unshift(leftSib.children.pop());
+        return;
+      }
+    }
+
+    // --- MERGE ---------------------------------------------------------------
+    if (rightSibIdx !== -1) {
+      const rightSib = parent.children[rightSibIdx];
+      // Pull the parent separator between node and rightSib down into node.
+      node.keys.push(parent.keys[nodeIdx]);
+      node.keys.push(...rightSib.keys);
+      node.children.push(...rightSib.children);
+      parent.keys.splice(nodeIdx, 1);
+      parent.children.splice(rightSibIdx, 1);
+    } else {
+      const leftSib = parent.children[leftSibIdx];
+      leftSib.keys.push(parent.keys[leftSibIdx]);
+      leftSib.keys.push(...node.keys);
+      leftSib.children.push(...node.children);
+      parent.keys.splice(leftSibIdx, 1);
+      parent.children.splice(nodeIdx, 1);
+    }
+
+    // Collapse root if it is now empty.
+    if (path.length === 1) {
+      if (parent.keys.length === 0) this.root = parent.children[0];
+      return;
+    }
+
+    if (parent.keys.length >= minKeys) return;
+    this._handleInternalUnderflow(parent, path.slice(0, -1));
+  }
 }
 
 module.exports = { BPlusTree, LeafNode, InternalNode };
