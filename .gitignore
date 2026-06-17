@@ -1,0 +1,4 @@
+node_modules/
+venv/
+*.db
+test_temp.db
