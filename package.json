@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "demo": "node demo.js",
-    "test:week1": "node tests/test-week1.js"
+    "test:week1": "node tests/test-week1.js",
+    "test:week2": "node tests/test-week2.js"
   }
 }
