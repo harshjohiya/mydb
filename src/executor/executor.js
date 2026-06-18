@@ -115,4 +115,118 @@ function execute(ast, catalog, bufferPool) {
   }
 }
 
-module.exports = { execute };
+
+/**
+ * Begins a transaction by appending a BEGIN entry to the WAL.
+ *
+ * @param {WAL} wal
+ * @param {string|number} txnId
+ */
+function beginTransaction(wal, txnId) {
+  wal.logBegin(txnId);
+}
+
+/**
+ * Commits a transaction by appending a COMMIT entry to the WAL.
+ *
+ * @param {WAL} wal
+ * @param {string|number} txnId
+ */
+function commitTransaction(wal, txnId) {
+  wal.logCommit(txnId);
+}
+
+/**
+ * Executes a parsed SQL AST and writes WAL log entries for every
+ * data-modifying operation (INSERT / DELETE).
+ *
+ * Must be called between beginTransaction() and commitTransaction().
+ *
+ * @param {Object} ast
+ * @param {Catalog} catalog
+ * @param {BufferPool} bufferPool
+ * @param {WAL} wal
+ * @param {string|number} txnId
+ * @returns {Object|Array}
+ */
+function executeWithWAL(ast, catalog, bufferPool, wal, txnId) {
+  if (ast.type === 'INSERT') {
+    const tableInfo = catalog.getTable(ast.table);
+
+    // Build row object
+    const row = {};
+    for (let i = 0; i < tableInfo.columns.length; i++) {
+      row[tableInfo.columns[i].name] = ast.values[i];
+    }
+
+    const rowData = JSON.stringify(row);
+    const rowLen = Buffer.byteLength(rowData, 'utf8');
+
+    let targetPage = null;
+    let targetPageId = null;
+
+    for (const pid of tableInfo.pageIds) {
+      const page = bufferPool.getPage(pid);
+      if (page.hasSpaceFor(rowLen)) {
+        targetPage = page;
+        targetPageId = pid;
+        break;
+      } else {
+        bufferPool.unpinPage(pid);
+      }
+    }
+
+    if (!targetPage) {
+      targetPage = bufferPool.newPage();
+      targetPageId = targetPage.pageId;
+      catalog.addPage(ast.table, targetPageId);
+    }
+
+    const slotIndex = targetPage.writeSlot(rowData);
+    bufferPool.unpinPage(targetPageId);
+
+    // Log BEFORE returning — WAL must be written before the operation is
+    // considered complete (write-ahead guarantee).
+    wal.logInsert(txnId, ast.table, row);
+
+    // Update indexes
+    for (const col of tableInfo.columns) {
+      if (catalog.hasIndex(ast.table, col.name)) {
+        catalog.getIndex(ast.table, col.name).insert(row[col.name], { pageId: targetPageId, slotIndex });
+      }
+    }
+
+    return { message: '1 row inserted.' };
+  }
+
+  if (ast.type === 'DELETE') {
+    const { planAndExecuteScan } = require('../sql/planner');
+    const matches = planAndExecuteScan(catalog, bufferPool, ast.table, ast.where);
+
+    for (const match of matches) {
+      const { pageId, slotIndex } = match.recordId;
+
+      // Log the delete before applying it
+      wal.logDelete(txnId, ast.table, match.recordId, match.row);
+
+      const page = bufferPool.getPage(pageId);
+      page.deleteSlot(slotIndex);
+      bufferPool.unpinPage(pageId);
+
+      const tableInfo = catalog.getTable(ast.table);
+      for (const col of tableInfo.columns) {
+        if (catalog.hasIndex(ast.table, col.name)) {
+          catalog.getIndex(ast.table, col.name).delete(match.row[col.name]);
+        }
+      }
+    }
+
+    return { message: `${matches.length} row(s) deleted.` };
+  }
+
+  // Non-mutating operations (SELECT, CREATE_TABLE) don't need WAL entries
+  return execute(ast, catalog, bufferPool);
+}
+
+module.exports = { execute, beginTransaction, commitTransaction, executeWithWAL };
+
