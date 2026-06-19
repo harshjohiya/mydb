@@ -11,6 +11,8 @@
     "test:week5": "node tests/test-week5.js",
     "demo:week4": "node demo-week4.js",
     "demo:week5:step1": "node demo-week5-step1.js",
-    "demo:week5:step2": "node demo-week5-step2.js"
+    "demo:week5:step2": "node demo-week5-step2.js",
+    "test:week6": "node tests/test-week6.js",
+    "demo:week6": "node demo-week6.js"
   }
 }
