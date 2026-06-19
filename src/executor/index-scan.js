@@ -1,3 +1,5 @@
+const { isVisible } = require('../transaction/mvcc');
+
 /**
  * Performs an index scan over a table's column index.
  * 
@@ -71,4 +73,88 @@ function indexScan(catalog, bufferPool, tableName, columnName, conditionAst) {
   return results;
 }
 
-module.exports = { indexScan };
+/**
+ * MVCC-aware index scan.
+ *
+ * Same index-lookup logic as indexScan, but every resolved record is
+ * parsed as a versioned row ({ createdByTxn, deletedByTxn, data }) and
+ * checked with isVisible() before being included.
+ *
+ * The index stores keys based on the INNER row's column value, so
+ * resolving a recordId, parsing it as a versionedRow, and checking
+ * visibility works the same way as in seqScanMVCC.
+ *
+ * @param {Catalog}            catalog
+ * @param {BufferPool}         bufferPool
+ * @param {string}             tableName
+ * @param {string}             columnName
+ * @param {Object}             conditionAst
+ * @param {number}             currentTxnId
+ * @param {TransactionManager} txnManager
+ * @returns {Array<{ recordId: { pageId, slotIndex }, row: Object, versionedRow: Object }>}
+ */
+function indexScanMVCC(catalog, bufferPool, tableName, columnName, conditionAst, currentTxnId, txnManager) {
+  const index = catalog.getIndex(tableName, columnName);
+  if (!index) {
+    throw new Error(`Index does not exist on ${tableName}.${columnName}`);
+  }
+
+  if (!conditionAst || conditionAst.type !== 'COMPARISON' || conditionAst.left !== columnName) {
+    throw new Error('indexScanMVCC requires a COMPARISON condition on the indexed column');
+  }
+
+  const results = [];
+  const op = conditionAst.op;
+  const rightVal = conditionAst.right;
+
+  // Helper: resolve a recordId to a versionedRow, apply visibility check
+  const resolveAndCheck = (recordId) => {
+    const page = bufferPool.getPage(recordId.pageId);
+    const data = page.readSlot(recordId.slotIndex);
+    if (data === null) {
+      bufferPool.unpinPage(recordId.pageId);
+      return null;
+    }
+
+    const versionedRow = JSON.parse(data.toString('utf-8'));
+    bufferPool.unpinPage(recordId.pageId);
+
+    if (!isVisible(versionedRow, currentTxnId, txnManager)) {
+      return null;
+    }
+
+    return { recordId, row: versionedRow.data, versionedRow };
+  };
+
+  if (op === '=' || op === 'EQ') {
+    const recordId = index.search(rightVal);
+    if (recordId) {
+      const resolved = resolveAndCheck(recordId);
+      if (resolved) results.push(resolved);
+    }
+  } else if (op === '>' || op === 'GT' || op === '>=' || op === 'GTE') {
+    const indexResults = index.rangeSearch(rightVal, Infinity);
+    for (const res of indexResults) {
+      if ((op === '>' || op === 'GT') && res.key === rightVal) {
+        continue;
+      }
+      const resolved = resolveAndCheck(res.recordId);
+      if (resolved) results.push(resolved);
+    }
+  } else if (op === '<' || op === 'LT' || op === '<=' || op === 'LTE') {
+    const indexResults = index.rangeSearch(-Infinity, rightVal);
+    for (const res of indexResults) {
+      if ((op === '<' || op === 'LT') && res.key === rightVal) {
+        continue;
+      }
+      const resolved = resolveAndCheck(res.recordId);
+      if (resolved) results.push(resolved);
+    }
+  } else {
+    throw new Error(`Unsupported operator for MVCC index scan: ${op}`);
+  }
+
+  return results;
+}
+
+module.exports = { indexScan, indexScanMVCC };
