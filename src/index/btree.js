@@ -572,6 +572,34 @@ class BPlusTree {
     if (parent.keys.length >= minKeys) return;
     this._handleInternalUnderflow(parent, path.slice(0, -1));
   }
+
+  // -------------------------------------------------------------------------
+  // countKeys()
+  // -------------------------------------------------------------------------
+  /**
+   * Returns the total count of keys currently in the tree.
+   *
+   * Note: This is an O(n) operation since it walks the entire leaf linked list.
+   * A real database maintains a running counter instead of recounting on every 
+   * call, which is a good follow-up optimization.
+   */
+  countKeys() {
+    let node = this.root;
+    // Descend leftmost path to find the first leaf
+    while (!node.isLeaf) {
+      node = node.children[0];
+    }
+    
+    let count = 0;
+    let leaf = node;
+    // Walk the leaf linked list and sum key counts
+    while (leaf !== null) {
+      count += leaf.keys.length;
+      leaf = leaf.next;
+    }
+    
+    return count;
+  }
 }
 
 module.exports = { BPlusTree, LeafNode, InternalNode };
