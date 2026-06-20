@@ -15,6 +15,10 @@
     "test:week6": "node tests/test-week6.js",
     "demo:week6": "node demo-week6.js",
     "test:week7": "node tests/test-week7.js",
-    "demo:week7": "node demo-week7.js"
+    "demo:week7": "node demo-week7.js",
+    "start": "node src/repl.js",
+    "bench:scan": "node benchmarks/bench-scan.js",
+    "bench:concurrency": "node benchmarks/bench-concurrency.js",
+    "bench:crash": "node benchmarks/bench-crash-recovery.js"
   }
 }

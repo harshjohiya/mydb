@@ -1,0 +1,15 @@
+{"txnId":1,"type":"BEGIN","lsn":1,"timestamp":1781931501931}
+{"txnId":1,"type":"COMMIT","lsn":2,"timestamp":1781931501932}
+{"txnId":2,"type":"BEGIN","lsn":3,"timestamp":1781931501933}
+{"txnId":2,"type":"INSERT","table":"users","data":{"createdByTxn":2,"deletedByTxn":null,"data":{"id":1,"name":"Rahul","age":22}},"lsn":4,"timestamp":1781931501933}
+{"txnId":2,"type":"COMMIT","lsn":5,"timestamp":1781931501934}
+{"txnId":3,"type":"BEGIN","lsn":6,"timestamp":1781931501935}
+{"txnId":3,"type":"INSERT","table":"users","data":{"createdByTxn":3,"deletedByTxn":null,"data":{"id":2,"name":"Priya","age":25}},"lsn":7,"timestamp":1781931501935}
+{"txnId":3,"type":"COMMIT","lsn":8,"timestamp":1781931501935}
+{"txnId":4,"type":"BEGIN","lsn":9,"timestamp":1781931501936}
+{"txnId":4,"type":"COMMIT","lsn":10,"timestamp":1781931501937}
+{"txnId":5,"type":"BEGIN","lsn":11,"timestamp":1781931501938}
+{"txnId":5,"type":"INSERT","table":"users","data":{"createdByTxn":5,"deletedByTxn":null,"data":{"id":3,"name":"Test","age":99}},"lsn":12,"timestamp":1781931501939}
+{"txnId":5,"type":"ABORT","lsn":13,"timestamp":1781931501939}
+{"txnId":6,"type":"BEGIN","lsn":14,"timestamp":1781931501940}
+{"txnId":6,"type":"COMMIT","lsn":15,"timestamp":1781931501940}
