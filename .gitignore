@@ -1,4 +1,5 @@
 node_modules/
-venv/
-*.db
-test_temp.db
+data/*.db
+data/*.wal
+npm-debug.log
+scratch.sql
