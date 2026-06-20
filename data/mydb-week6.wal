@@ -1,0 +1,10 @@
+{"txnId":1,"type":"BEGIN","lsn":1,"timestamp":1781888088224}
+{"txnId":1,"type":"INSERT","table":"users","data":{"createdByTxn":1,"deletedByTxn":null,"data":{"id":1,"name":"Alice","age":25}},"lsn":2,"timestamp":1781888088225}
+{"txnId":1,"type":"INSERT","table":"users","data":{"createdByTxn":1,"deletedByTxn":null,"data":{"id":2,"name":"Bob","age":30}},"lsn":3,"timestamp":1781888088226}
+{"txnId":2,"type":"BEGIN","lsn":4,"timestamp":1781888088226}
+{"txnId":1,"type":"COMMIT","lsn":5,"timestamp":1781888088227}
+{"txnId":3,"type":"BEGIN","lsn":6,"timestamp":1781888088227}
+{"txnId":4,"type":"BEGIN","lsn":7,"timestamp":1781888088228}
+{"txnId":4,"type":"DELETE","table":"users","data":{"recordId":{"pageId":0,"slotIndex":0},"row":{"id":1,"name":"Alice","age":25}},"lsn":8,"timestamp":1781888088228}
+{"txnId":4,"type":"COMMIT","lsn":9,"timestamp":1781888088230}
+{"txnId":5,"type":"BEGIN","lsn":10,"timestamp":1781888088230}

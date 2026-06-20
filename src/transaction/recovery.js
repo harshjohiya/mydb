@@ -69,6 +69,7 @@ function recover(wal, catalog, bufferPool) {
         }
       }
 
+      catalog.incrementRowCount(table);
       insertsReplayed++;
 
     } else if (entry.type === 'DELETE') {

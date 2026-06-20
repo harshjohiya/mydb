@@ -64,6 +64,8 @@ function execute(ast, catalog, bufferPool) {
         }
       }
 
+      catalog.incrementRowCount(ast.table);
+
       return { message: "1 row inserted." };
     }
 
@@ -106,6 +108,10 @@ function execute(ast, catalog, bufferPool) {
             idx.delete(match.row[colName]);
           }
         }
+      }
+
+      for (let i = 0; i < matches.length; i++) {
+        catalog.decrementRowCount(ast.table);
       }
 
       return { message: `${matches.length} row(s) deleted.` };
@@ -197,6 +203,8 @@ function executeWithWAL(ast, catalog, bufferPool, wal, txnId) {
       }
     }
 
+    catalog.incrementRowCount(ast.table);
+
     return { message: '1 row inserted.' };
   }
 
@@ -220,6 +228,10 @@ function executeWithWAL(ast, catalog, bufferPool, wal, txnId) {
           catalog.getIndex(ast.table, col.name).delete(match.row[col.name]);
         }
       }
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      catalog.decrementRowCount(ast.table);
     }
 
     return { message: `${matches.length} row(s) deleted.` };
@@ -310,6 +322,8 @@ function executeWithMVCC(ast, catalog, bufferPool, wal, txnManager, txnId) {
         }
       }
 
+      catalog.incrementRowCount(ast.table);
+
       return { message: '1 row inserted.' };
     }
 
@@ -398,6 +412,14 @@ function executeWithMVCC(ast, catalog, bufferPool, wal, txnManager, txnId) {
               .insert(match.row[col.name], newRecordId);
           }
         }
+      }
+
+      for (let i = 0; i < matches.length; i++) {
+        // We decrement once per logically deleted row. This intentionally undercounts
+        // slightly under MVCC (since the OLD physical slot is tombstoned but a NEW 
+        // versioned row is written), but the row count should reflect logically-live 
+        // rows, not physical slots.
+        catalog.decrementRowCount(ast.table);
       }
 
       return { message: `${matches.length} row(s) marked deleted.` };

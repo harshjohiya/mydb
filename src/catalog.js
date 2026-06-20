@@ -25,7 +25,8 @@ class Catalog {
     const tableInfo = {
       columns: columns,
       pageIds: [],
-      indexes: new Map() // Maps columnName -> BPlusTree instance
+      indexes: new Map(), // Maps columnName -> BPlusTree instance
+      rowCount: 0
     };
 
     this.tables.set(tableName, tableInfo);
@@ -58,6 +59,24 @@ class Catalog {
   hasIndex(tableName, columnName) {
     const tableInfo = this.getTable(tableName);
     return tableInfo.indexes.has(columnName);
+  }
+
+  // A real database periodically runs ANALYZE to recompute statistics 
+  // like this from scratch (since counters can drift from bugs, crashes, etc.).
+  // Our version trusts the live counter, which is a simplification.
+  incrementRowCount(tableName) {
+    this.getTable(tableName).rowCount++;
+  }
+
+  decrementRowCount(tableName) {
+    const tableInfo = this.getTable(tableName);
+    if (tableInfo.rowCount > 0) {
+      tableInfo.rowCount--;
+    }
+  }
+
+  getRowCount(tableName) {
+    return this.getTable(tableName).rowCount;
   }
 }
 

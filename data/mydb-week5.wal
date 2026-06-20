@@ -1,0 +1,7 @@
+{"txnId":"txn1","type":"BEGIN","lsn":1,"timestamp":1781805942178}
+{"txnId":"txn1","type":"INSERT","table":"users","data":{"id":1,"name":"Alice","age":25},"lsn":2,"timestamp":1781805942181}
+{"txnId":"txn1","type":"INSERT","table":"users","data":{"id":2,"name":"Bob","age":30},"lsn":3,"timestamp":1781805942183}
+{"txnId":"txn1","type":"INSERT","table":"users","data":{"id":3,"name":"Charlie","age":22},"lsn":4,"timestamp":1781805942184}
+{"txnId":"txn1","type":"COMMIT","lsn":5,"timestamp":1781805942184}
+{"txnId":"txn2","type":"BEGIN","lsn":6,"timestamp":1781805942185}
+{"txnId":"txn2","type":"INSERT","table":"users","data":{"id":4,"name":"Diana","age":28},"lsn":7,"timestamp":1781805942186}
