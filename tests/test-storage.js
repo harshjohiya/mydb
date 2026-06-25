@@ -107,13 +107,13 @@ function testBufferPoolEviction() {
 }
 
 function runAllTests() {
-  console.log('Running Week 1 tests...');
+  console.log('Running Storage tests...');
   testPageWriteRead();
   testPageFullThrows();
   testDeleteSlot();
   testDiskPersistence();
   testBufferPoolEviction();
-  console.log('All Week 1 tests passed');
+  console.log('All Storage tests passed');
 }
 
 runAllTests();

@@ -159,7 +159,7 @@ function testCrashRecoveryReplaysCommittedInserts() {
 // Run all
 // ---------------------------------------------------------------------------
 function runAllTests() {
-  console.log('Running Week 5 tests...');
+  console.log('Running Recovery tests...');
   cleanup(); // ensure clean slate before the first test
 
   testWALLogAndReadAll();
@@ -168,7 +168,7 @@ function runAllTests() {
   testCrashRecoveryReplaysCommittedInserts();
 
   cleanup();
-  console.log('All Week 5 tests passed');
+  console.log('All Recovery tests passed');
 }
 
 runAllTests();

@@ -173,7 +173,7 @@ function testCountKeysMatchesInsertedRows() {
 // Run all
 // ---------------------------------------------------------------------------
 function runAllTests() {
-  console.log('Running Week 7 tests...');
+  console.log('Running Planner tests...');
   cleanup(); // ensure clean slate before the first test
 
   testIndexChosenForHighSelectivity();
@@ -183,7 +183,7 @@ function runAllTests() {
   testCountKeysMatchesInsertedRows();
 
   cleanup();
-  console.log('All Week 7 tests passed');
+  console.log('All Planner tests passed');
 }
 
 runAllTests();

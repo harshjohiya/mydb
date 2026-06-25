@@ -109,10 +109,10 @@ function testDeleteNonExistentKey() {
 }
 
 // Call all five at the bottom
-console.log('Running Week 2 tests...');
+console.log('Running BTree tests...');
 testInsertAndSearch();
 testSplitting();
 testRangeSearch();
 testDelete();
 testDeleteNonExistentKey();
-console.log('All Week 2 tests passed');
+console.log('All BTree tests passed');

@@ -1,11 +1,11 @@
 /**
- * demo-week5-step2.js — "Restarting after the crash"
+ * demo-recovery-step2.js — "Restarting after the crash"
  *
  * Opens the WAL file left on disk from step 1, rebuilds the schema in a
  * fresh catalog + buffer pool, and calls recover() to replay only the
  * committed transactions.
  *
- * Run after: npm run demo:week5:step1
+ * Run after: npm run demo:storage:week5:step1
  */
 
 const path = require('path');
@@ -24,7 +24,7 @@ const WAL_PATH = path.join(__dirname, 'data', 'mydb-week5.wal');
 const DB_PATH  = path.join(__dirname, 'data', 'mydb-week5.db');
 
 if (!fs.existsSync(WAL_PATH)) {
-  console.error('ERROR: WAL file not found. Run step 1 first:\n  npm run demo:week5:step1');
+  console.error('ERROR: WAL file not found. Run step 1 first:\n  npm run demo:storage:week5:step1');
   process.exit(1);
 }
 

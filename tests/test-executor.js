@@ -148,7 +148,7 @@ function testDeleteRemovesRowAndIndexEntry() {
 // Run all
 // ---------------------------------------------------------------------------
 function runAllTests() {
-  console.log('Running Week 4 tests...');
+  console.log('Running Executor tests...');
   cleanupDb(); // Initial cleanup
   
   testCreateTable();
@@ -158,7 +158,7 @@ function runAllTests() {
   testDeleteRemovesRowAndIndexEntry();
   
   cleanupDb(); // Final cleanup
-  console.log('All Week 4 tests passed');
+  console.log('All Executor tests passed');
 }
 
 runAllTests();

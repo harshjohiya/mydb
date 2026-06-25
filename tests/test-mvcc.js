@@ -167,7 +167,7 @@ function testLogicalDeleteRespectsIsolation() {
 // Run all
 // ---------------------------------------------------------------------------
 function runAllTests() {
-  console.log('Running Week 6 tests...');
+  console.log('Running MVCC tests...');
   cleanup();
 
   testOwnUncommittedWriteIsVisibleToSelf();
@@ -177,7 +177,7 @@ function runAllTests() {
   testLogicalDeleteRespectsIsolation();
 
   cleanup();
-  console.log('All Week 6 tests passed');
+  console.log('All MVCC tests passed');
 }
 
 runAllTests();

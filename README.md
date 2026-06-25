@@ -1,67 +1,36 @@
 # mydb
 
-A relational database engine built from scratch in Node.js, layer by layer, over 8 weeks — implementing a slotted-page storage engine, B+ Tree indexing, a SQL lexer/parser, a cost-based query planner, write-ahead logging with crash recovery, and MVCC transaction isolation.
+A relational database engine built from scratch in Node.js, layer by layer, over 8 weeks. It features a slotted-page storage engine, B+ Tree indexing, a custom SQL lexer/parser, a cost-based query planner, write-ahead logging (WAL) for crash recovery, and Multi-Version Concurrency Control (MVCC) for transaction isolation.
 
-## Project Structure
+---
 
-```text
-mydb/
-├── benchmarks/
-│   ├── _crash-worker.js
-│   ├── bench-concurrency.js
-│   ├── bench-crash-recovery.js
-│   └── bench-scan.js
-├── data/
-│   └── (Database and WAL files are stored here)
-├── src/
-│   ├── executor/
-│   │   ├── eval-condition.js
-│   │   ├── executor.js
-│   │   ├── index-scan.js
-│   │   └── seq-scan.js
-│   ├── index/
-│   │   └── btree.js
-│   ├── sql/
-│   │   ├── cost-estimator.js
-│   │   ├── lexer.js
-│   │   ├── parser.js
-│   │   └── planner.js
-│   ├── storage/
-│   │   ├── buffer-pool.js
-│   │   ├── disk-manager.js
-│   │   └── page.js
-│   ├── transaction/
-│   │   ├── mvcc.js
-│   │   ├── recovery.js
-│   │   ├── transaction-manager.js
-│   │   └── wal.js
-│   ├── catalog.js
-│   ├── repl-format.js
-│   └── repl.js
-├── tests/
-│   ├── test-week1.js
-│   ├── test-week2.js
-│   ├── test-week3.js
-│   ├── test-week4.js
-│   ├── test-week5.js
-│   ├── test-week6.js
-│   └── test-week7.js
-├── demo-week7.js
-├── package.json
-└── README.md
+## Architecture
+
+```mermaid
+graph TD
+    Client[Interactive REPL] -->|SQL Query| Lexer[SQL Lexer]
+    Lexer -->|Tokens| Parser[Recursive-Descent Parser]
+    Parser -->|Abstract Syntax Tree| Planner[Cost-Based Query Planner]
+    Planner -->|Execution Plan| Executor[Executor]
+    
+    Executor -->|Schema & Index Meta| Catalog[(System Catalog)]
+    Executor -->|Txn State| TxnManager[Transaction Manager / MVCC]
+    Executor -->|Log Mutations| WAL[Write-Ahead Log]
+    
+    Executor -->|Index Scan| BTree[B+ Tree]
+    BTree -.->|Page Requests| BufferPool
+    
+    TxnManager -->|Read/Write Rows| BufferPool[LRU Buffer Pool]
+    
+    BufferPool -->|Page I/O| DiskManager[Disk Manager]
+    DiskManager -->|Slotted Pages| DBFile[(Database File)]
+    WAL -->|Append| WALFile[(WAL File)]
+    
+    Recovery[Crash Recovery] -.->|Redo Committed| WALFile
+    Recovery -.->|Rebuild State| BufferPool
 ```
 
-## Setup Instructions
-
-1. Install dependencies (if any):
-   ```bash
-   npm install
-   ```
-
-2. Start the interactive REPL:
-   ```bash
-   npm start
-   ```
+---
 
 ## Features
 
@@ -72,53 +41,197 @@ mydb/
 - **WAL & Crash Recovery**: A Write-Ahead Log to record mutations, ensuring durability and the ability to rebuild the database after a hard crash (replaying committed rows and skipping uncommitted ones).
 - **MVCC Isolation**: Multi-Version Concurrency Control providing read-committed transactional isolation without blocking concurrent reads.
 
-## Running the Test Suite
+---
 
-The project includes unit and integration tests tracking the progress of each week:
+## Project Structure
 
-```bash
-npm run test:week1
-npm run test:week2
-npm run test:week3
-npm run test:week4
-npm run test:week5
-npm run test:week6
-npm run test:week7
+```text
+mydb/
+├── benchmarks/              # Performance and reliability benchmarking scripts
+├── data/                    # Database (*.db) and WAL (*.wal) files
+├── src/
+│   ├── executor/            # Execution engine (index scans, seq scans, MVCC)
+│   ├── index/               # B+ Tree implementation
+│   ├── sql/                 # Lexer, Parser, and Cost-Based Planner
+│   ├── storage/             # Slotted Pages, LRU Buffer Pool, Disk Manager
+│   ├── transaction/         # WAL, Crash Recovery, and Transaction Manager
+│   ├── catalog.js           # In-memory schema and index tracking
+│   ├── repl-format.js       # Formatting utilities for the REPL
+│   └── repl.js              # Interactive SQL shell
+├── tests/                   # Unit and integration test suite
+├── demo-*.js                # Step-by-step demonstrations of core concepts
+├── package.json
+└── README.md
 ```
+
+---
+
+## Getting Started
+
+1. **Install dependencies** (if any):
+   ```bash
+   npm install
+   ```
+
+2. **Start the interactive REPL**:
+   ```bash
+   npm start
+   ```
+
+---
+
+## Testing & Demonstrations
+
+The project includes unit tests tracking the progress of each system layer, as well as step-by-step demonstration scripts.
+
+### Running the Test Suite
+```bash
+npm run test:storage
+npm run test:btree
+npm run test:parser
+npm run test:executor
+npm run test:recovery
+npm run test:mvcc
+npm run test:planner
+```
+
+### Running Demonstrations
+You can explore specific subsystems via the provided demo scripts:
+- `npm run demo:storage` (Storage Engine & Buffer Pool)
+- `npm run demo:btree` (B+ Tree)
+- `npm run demo:executor` (Catalog & Execution)
+- `npm run demo:recovery:step1` (Crash Simulation)
+- `npm run demo:recovery:step2` (Crash Recovery)
+- `npm run demo:mvcc` (Isolation Levels)
+- `npm run demo:planner` (Cost-based Query Planning)
+
+---
 
 ## Benchmarks
 
-The `benchmarks/` directory contains standalone scripts profiling the characteristics of the database:
+The `benchmarks/` directory contains standalone scripts profiling the characteristics of the database.
 
-### 1. `bench:scan`
+<details>
+<summary><b>1. <code>bench:scan</code> (Index Scan vs Sequential Scan)</b></summary>
+
 Proves the index scan speedup. Profiles `seqScan` vs `indexScan` on a highly selective query against padded rows spanning multiple disk pages.
 ```bash
 npm run bench:scan
 ```
 *Results:*
 ```text
-[paste your output here]
-```
+> mydb@1.0.0 bench:scan
+> node benchmarks/bench-scan.js
 
-### 2. `bench:concurrency`
+Setting up DB...
+Inserting 5000 rows...
+Benchmarking Seq Scan...
+Benchmarking Index Scan...
+
+==============================================
+             SCAN BENCHMARK RESULTS           
+==============================================
+Rows Scanned    : 5000
+Seq Scan Avg    : 17.947 ms
+Index Scan Avg  : 0.071 ms
+Matches Found   : 1 (Seq) / 1 (Index)
+Speedup         : 253.1x faster
+==============================================
+
+Note: With only 5000 rows across a handful of pages, the speedup 
+may be modest (or even reversed for tiny datasets, since hitting 3 B+ Tree 
+levels has fixed overhead). The real win shows up as table size grows, 
+since seq scan cost grows linearly with page count while index scan stays 
+roughly flat. If you want a bigger gap, bump rowCount to 50000+.
+```
+</details>
+
+<details>
+<summary><b>2. <code>bench:concurrency</code> (MVCC Isolation)</b></summary>
+
 Proves MVCC isolation. Runs concurrent transactions reading and writing simultaneously, verifying that a dirty read does not occur and committed data is accurately observed.
 ```bash
 npm run bench:concurrency
 ```
 *Results:*
 ```text
-[paste your output here]
-```
+> mydb@1.0.0 bench:concurrency
+> node benchmarks/bench-concurrency.js
 
-### 3. `bench:crash`
+Setting up DB for MVCC Concurrency Test...
+
+--- Starting Test ---
+[TxnA] Started (id: 1)
+[TxnA] Inserted (id=1, balance=100), but NOT COMMITTED yet.
+[TxnB] Started concurrently (id: 2)
+[planner] no usable index (MVCC)
+✅ PASSED: txnB correctly could not see txnA's uncommitted insert
+
+[TxnA] Committing now...
+[TxnA] Committed.
+
+[TxnC] Started after TxnA commit (id: 3)
+[planner] no usable index (MVCC)
+✅ PASSED: txnC correctly sees txnA's committed data
+
+[TxnB] Reading again (still open from earlier)...
+[planner] no usable index (MVCC)
+[TxnB] Found 1 rows.
+       Note: Under this read-committed-style MVCC model, TxnB WILL now see
+       the newly committed row, even though it didn't see it earlier.
+       This is a known characteristic of read-committed isolation.
+
+==============================================
+                 SUMMARY                      
+==============================================
+RESULT: ✅ All 2 tests passed successfully
+```
+</details>
+
+<details>
+<summary><b>3. <code>bench:crash</code> (WAL Recovery)</b></summary>
+
 Proves crash resilience. Spawns a dedicated worker process running a transaction, forcibly kills it (`SIGKILL`) midway through a secondary uncommitted transaction, and verifies the exact committed state using the WAL.
 ```bash
 npm run bench:crash
 ```
 *Results:*
 ```text
-[paste your output here]
+> mydb@1.0.0 bench:crash
+> node benchmarks/bench-crash-recovery.js
+
+Spawning worker process...
+Force-killing worker process (SIGKILL) to simulate a crash...
+Recovering...
+Recovery complete: replayed 3 inserts, skipped 0 deletes.
+[planner] no usable index
+Data in 'logs' table after recovery:
+[
+  {
+    createdByTxn: 1,
+    deletedByTxn: null,
+    data: { id: 1, message: 'Log 1' }
+  },
+  {
+    createdByTxn: 1,
+    deletedByTxn: null,
+    data: { id: 2, message: 'Log 2' }
+  },
+  {
+    createdByTxn: 1,
+    deletedByTxn: null,
+    data: { id: 3, message: 'Log 3' }
+  }
+]
+
+==============================================
+                 SUMMARY                      
+==============================================
+RESULT: ✅ PASS. Exactly 3 committed rows recovered; uncommitted row absent.
 ```
+</details>
+
+---
 
 ## Known Limitations / Future Exercises
 
@@ -128,6 +241,8 @@ As a pedagogical project built over an 8-week period, certain compromises and si
 - **Read-Committed MVCC**: The MVCC implementation operates closer to "read-committed" style rather than true snapshot isolation.
 - **Logical Redo Recovery**: The WAL recovery does logical (not physical) redo and skips replaying deletes.
 - **Single Process**: The architecture expects single-process usage. There is no concurrent multi-process access support (single Node process only).
+
+---
 
 ## Resume
 

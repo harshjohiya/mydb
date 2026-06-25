@@ -1,11 +1,11 @@
 /**
- * demo-week5-step1.js — "The database before a crash"
+ * demo-recovery-step1.js — "The database before a crash"
  *
  * This script sets up the engine, inserts data in two transactions,
  * commits the first, then exits WITHOUT committing the second or flushing
  * the buffer pool — simulating a hard crash / power loss.
  *
- * Run next: npm run demo:week5:step2
+ * Run next: npm run demo:storage:week5:step2
  */
 
 const path = require('path');
@@ -82,7 +82,7 @@ console.log();
 console.log('WAL on disk :', WAL_PATH);
 console.log('DB  on disk :', DB_PATH, '(dirty pages never written — data "lost")');
 console.log();
-console.log('Now run: npm run demo:week5:step2');
+console.log('Now run: npm run demo:storage:week5:step2');
 
 // Intentionally do NOT call pool.flushAll() or disk.close().
 // The process ends here; dirty buffer pages are discarded.

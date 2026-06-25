@@ -125,7 +125,7 @@ function testParseLogicalAnd() {
 // Run all
 // ---------------------------------------------------------------------------
 function runAllTests() {
-  console.log('Running Week 3 tests...');
+  console.log('Running Parser tests...');
   testTokenizeSimpleSelect();
   testTokenizeWithWhereClause();
   testTokenizeString();
@@ -138,7 +138,7 @@ function runAllTests() {
   testParseDelete();
   testParseLogicalAnd();
   
-  console.log('All Week 3 tests passed');
+  console.log('All Parser tests passed');
 }
 
 runAllTests();
